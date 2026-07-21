@@ -32,14 +32,17 @@ export default function Service() {
       const rawData = response.data.messages || response.data.data || response.data || [];
       
       const safeMessages = Array.isArray(rawData) ? rawData.map(msg => {
-        // Admin သို့မဟုတ် User ဘာလဲဆိုတာ စစ်ဆေးခြင်း
-        let sender = msg.sender || msg.sent_by || msg.sender_id;
-        if (!sender) {
-          if (msg.admin_id) sender = 'admin';
-          else if (msg.user_id) sender = 'user';
-          else sender = 'user';
+        // Admin နှင့် User ခွဲခြားသည့် Logic ကို ပိုမိုတိကျအောင် ပြင်ဆင်ခြင်း
+        let senderType = msg.sender || msg.sent_by || msg.sender_type;
+        
+        if (!senderType) {
+          if (msg.admin_id || msg.isAdmin || msg.sender_id === 'admin') {
+            senderType = 'admin';
+          } else {
+            senderType = 'user';
+          }
         }
-        return { ...msg, sender };
+        return { ...msg, sender: String(senderType).toLowerCase() };
       }) : [];
       
       setMessages(safeMessages);
@@ -69,10 +72,20 @@ export default function Service() {
     const handleNewMessage = (data) => {
       const newMessage = data.message || data;
       if (newMessage) {
+        let senderType = newMessage.sender || newMessage.sent_by || newMessage.sender_type;
+        if (!senderType) {
+          senderType = newMessage.admin_id ? 'admin' : 'user';
+        }
+
+        const formattedMsg = {
+          ...newMessage,
+          sender: String(senderType).toLowerCase()
+        };
+
         setMessages(prev => {
-          const exists = prev.some(msg => msg.id === newMessage.id);
+          const exists = prev.some(msg => msg.id === formattedMsg.id);
           if (exists) return prev;
-          return [...prev, { ...newMessage, sender: newMessage.sender || 'admin' }];
+          return [...prev, formattedMsg];
         });
       }
     };
@@ -137,7 +150,7 @@ export default function Service() {
       if (responseData) {
         const sentMessage = { 
           ...responseData, 
-          sender: responseData.sender || 'user' 
+          sender: 'user' 
         };
         setMessages(prev => [...prev, sentMessage]);
       } else {
@@ -200,12 +213,11 @@ export default function Service() {
             const imageUrl = msg.image_url || msg.imageUrl || msg.image || '';
             const timestamp = msg.created_at || msg.createdAt || msg.timestamp;
             
-            const currentUserId = user?.id || user?._id;
-            const senderId = msg.sender;
+            const sender = String(msg.sender || '').toLowerCase();
+            const isAdmin = sender === 'admin' || !!msg.admin_id || msg.sent_by === 'admin';
             
-            // စာပို့သူသည် လက်ရှိ User ဖြစ်ပါက ညာဘက်၊ Admin/Receiver ဖြစ်ပါက ဘယ်ဘက်
-            const isFromCurrentUser = senderId === 'user' || 
-                                     (currentUserId && String(senderId) === String(currentUserId));
+            // ✅ စာပို့သူသည် Admin ဖြစ်ပါက ဘယ်ဘက် (မီးခိုးရောင်)၊ User ဖြစ်ပါက ညာဘက် (အပြာရောင်)
+            const isFromCurrentUser = !isAdmin && (sender === 'user' || msg.user_id);
 
             return (
               <div 
@@ -214,8 +226,8 @@ export default function Service() {
               >
                 <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                   isFromCurrentUser 
-                    ? 'bg-[#1e40af] text-white rounded-br-none' // Sender (ညာဘက် - အပြာရောင်)
-                    : 'bg-[#1f2937] text-gray-200 rounded-bl-none' // Receiver (ဘယ်ဘက် - မီးခိုးရောင်)
+                    ? 'bg-[#1e40af] text-white rounded-br-none' // User (ညာဘက် - အပြာ)
+                    : 'bg-[#1f2937] text-gray-200 rounded-bl-none' // Admin (ဘယ်ဘက် - မီးခိုး)
                 }`}>
                   {messageText && <p className="text-sm leading-relaxed mb-1">{messageText}</p>}
                   

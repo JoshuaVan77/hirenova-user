@@ -1,10 +1,14 @@
 import axios from 'axios';
 
-// ✅ 1. Dynamic API Base URL (Production Ready)
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://hirenova-backend-production-32b1.up.railway.app';
-const API_BASE_URL = `${BASE_URL}/api`; // ✅ /api prefix ထည့်ထားသည်
+// ✅ 1. HARD CODED URL (ယာယီဖြေရှင်းနည်း - Environment Variable ပြဿနာကို လုံးဝ ဖယ်ရှားပေးသည်)
+// ဒီနည်းလမ်းက Vite env variable parsing error တွေကို လုံးဝ ကာကွယ်ပေးနိုင်ပါတယ်။
+const BACKEND_URL = 'https://hirenova-backend-production-32b1.up.railway.app';
+const API_BASE_URL = `${BACKEND_URL}/api`;
 
-// ✅ 2. Axios Instance န်တီးခြင်း
+// Debugging အတွက် Console မှာ URL မှန်/မမှန် ပြသပေးပါမယ်
+console.log('🔍 API_BASE_URL is set to:', API_BASE_URL);
+
+// ✅ 2. Axios Instance ဖန်တီးခြင်း
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {

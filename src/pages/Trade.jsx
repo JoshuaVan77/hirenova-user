@@ -50,23 +50,46 @@ export default function Trade() {
   const fetchTodayTasks = async () => {
     setLoading(true);
     try {
+      console.log('🔄 Fetching today tasks...');
+      
       const [tasksRes, settingsRes] = await Promise.all([
         api.get('/user/tasks/today'),
         api.get('/settings')
       ]);
       
-      const fetchedTasks = Array.isArray(tasksRes.data.tasks) ? tasksRes.data.tasks : [];
-      setTasks(fetchedTasks);
-      setCompletedCount(tasksRes.data.completedCount || 0);
+      console.log('📥 Tasks Response:', tasksRes.data);
+      
+      // ✅ FIXED: Better handling of tasks array
+      const fetchedTasks = tasksRes.data?.tasks || tasksRes.data || [];
+      const tasksArray = Array.isArray(fetchedTasks) ? fetchedTasks : [];
+      
+      console.log('✅ Tasks Array:', tasksArray);
+      console.log('📊 Total Tasks:', tasksArray.length);
+      
+      setTasks(tasksArray);
+      setCompletedCount(tasksRes.data?.completedCount || 0);
       
       if (settingsRes.data?.settings?.min_task_balance) {
         setMinTaskBalance(parseFloat(settingsRes.data.settings.min_task_balance));
       }
       
+      // ✅ FIXED: Show error if no tasks available
+      if (tasksArray.length === 0) {
+        console.warn('⚠️ No tasks available for today');
+      }
+      
       await fetchTodayEarnings();
     } catch (error) {
       console.error('❌ Error fetching data:', error);
-      alert('Failed to load tasks. Please check your connection and try again.');
+      console.error('Error Response:', error.response?.data);
+      
+      // ✅ FIXED: Better error message
+      const errorMessage = error.response?.data?.message || 
+                          'Failed to load tasks. Please check your connection and try again.';
+      alert(errorMessage);
+      
+      // Set empty array to prevent undefined errors
+      setTasks([]);
     } finally {
       setLoading(false);
     }
@@ -106,13 +129,22 @@ export default function Trade() {
 
     const currentBalance = parseFloat(user?.balance || 0);
     if (currentBalance < minTaskBalance) {
-      alert(`Insufficient balance! You need at least $${minTaskBalance} to start tasks. Please Top-up.`);
-      navigate('/topup-form');
+      setBalanceAlertAmount(minTaskBalance);
+      setShowBalanceAlert(true);
       return;
     }
 
+    // ✅ FIXED: Check if tasks array is empty BEFORE proceeding
     if (!tasks || tasks.length === 0) {
-      alert('No tasks available. Please contact support.');
+      console.error('❌ Tasks array is empty!');
+      alert('No tasks available. Please contact support or try again later.');
+      return;
+    }
+
+    // ✅ FIXED: Check if completedCount is within tasks array bounds
+    if (completedCount >= tasks.length) {
+      console.error('❌ Completed count exceeds available tasks');
+      alert('No more tasks available for today.');
       return;
     }
 
@@ -129,11 +161,20 @@ export default function Trade() {
     const currentTaskIndex = completedCount;
     const task = tasks[currentTaskIndex];
     
-    if (!task || !task.id) {
-      console.error('❌ Current task is undefined or missing ID at index:', currentTaskIndex);
+    // ✅ FIXED: Better validation
+    if (!task) {
+      console.error('❌ Task is undefined at index:', currentTaskIndex);
       alert('Task data is not available. Please refresh the page.');
       return;
     }
+    
+    if (!task.id) {
+      console.error('❌ Task is missing ID:', task);
+      alert('Invalid task data. Please contact support.');
+      return;
+    }
+
+    console.log('📋 Processing Task:', task);
 
     try {
       console.log(`🔍 Checking Lucky Order for Task #${completedCount + 1}...`);
@@ -154,7 +195,6 @@ export default function Trade() {
           hotel_name: luckyCheck.data.hotel_name || task?.hotel_name || 'Lucky Hotel',
           hotel_image: luckyCheck.data.hotel_image || task?.hotel_image || '',
           task_id: luckyCheck.data.task_id || task?.id,
-          // ✅ Backend က Top-up လုပ်ပြီးသားလား ဆိုတာ ပြန်ပို့ပေးရင် ဒီနေရာမှာ သုံးလို့ရအောင် ထည့်ထားသည်
           topUpCompleted: luckyCheck.data.topUpCompleted || false 
         };
         
@@ -199,13 +239,12 @@ export default function Trade() {
     });
 
     // ✅ RULE: If it's a Lucky Order AND the required top-up hasn't been completed, BLOCK it.
-    // ဒါမှ User က Lucky Order တိုင်းမှာ Top-up မလုပ်မချင်း Task မပြီးနိုင်တော့ဘူး။
     if (isLuckyOrderActive && requiredAmount > 0 && !luckyData?.topUpCompleted) {
       console.log('🚫 BLOCKING: Lucky Order requires Top-up. Showing alert.');
       setShowRatingModal(false);
       setBalanceAlertAmount(requiredAmount);
       setShowBalanceAlert(true);
-      return; // ⛔ Backend ကို လုံးဝ မပို့ဘူး ဒီနေရာမှာ ရပ်မယ်
+      return;
     }
     
     // ✅ Balance လုံလောက်ရင် (သို့မဟုတ်) Regular Task ဆိုရင် Submit လုပ်မယ်
@@ -246,7 +285,7 @@ export default function Trade() {
       });
 
       await forceRefreshUserData();
-      setCompletedCount(response.data.completedCount);
+      setCompletedCount(response.data.completedCount || (completedCount + 1));
       await fetchTodayEarnings();
       
     } catch (error) {
@@ -570,7 +609,7 @@ export default function Trade() {
             <p className="text-gray-300 mb-6 text-center leading-relaxed">
               Your balance is too low. You need{' '}
               <span className="text-red-400 font-bold text-lg">${balanceAlertAmount.toFixed(2)}</span>{' '}
-              to complete this Lucky Order.
+              to complete this task.
             </p>
 
             <div className="flex gap-3">

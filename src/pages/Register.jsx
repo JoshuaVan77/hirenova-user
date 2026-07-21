@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, Lock, Key, ChevronDown, Smartphone, Tablet, Monitor } from 'lucide-react';
+import { User, Phone, Mail, Lock, Key, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const countries = [
-  { code: '+95', flag: '🇲', name: 'Myanmar' },
+  { code: '+95', flag: '🇲🇲', name: 'Myanmar' },
   { code: '+91', flag: '🇮🇳', name: 'India' },
   { code: '+1', flag: '🇺🇸', name: 'USA' },
-  { code: '+44', flag: '🇧', name: 'UK' },
-  { code: '+86', flag: '🇳', name: 'China' },
+  { code: '+44', flag: '🇬🇧', name: 'UK' },
+  { code: '+86', flag: '🇨🇳', name: 'China' },
   { code: '+66', flag: '🇹🇭', name: 'Thailand' },
   { code: '+84', flag: '🇻🇳', name: 'Vietnam' },
   { code: '+60', flag: '🇲🇾', name: 'Malaysia' },
@@ -27,6 +27,7 @@ export default function Register() {
     payment_password: '',
     invite_code: ''
   });
+  
   const navigate = useNavigate();
   const { register } = useAuth();
 
@@ -40,15 +41,23 @@ export default function Register() {
     setLoading(true);
 
     const fullPhone = `${selectedCountry.code}${formData.phone}`;
-    const result = await register({ ...formData, phone: fullPhone });
+    
+    try {
+      // ✅ AuthContext ထဲက register function ကို ခေါ်သုံးပါ
+      const result = await register({ ...formData, phone: fullPhone });
 
-    setLoading(false);
-
-    if (result.success) {
-      alert('Registration successful! Please login.');
-      navigate('/login');
-    } else {
-      setError(result.message);
+      if (result.success) {
+        // ✅ မှတ်ပုံတင်အောင်မြင်ပါက Login page သို့ ပို့ပါ
+        navigate('/login', { state: { message: 'Registration successful! Please login.' } });
+      } else {
+        // ✅ Backend က ပြန်ပို့တဲ့ Error Message ကို ပြသပါ
+        setError(result.message || 'Registration failed. Please check your details.');
+      }
+    } catch (err) {
+      console.error('Registration error:', err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -63,12 +72,11 @@ export default function Register() {
             HireNova
           </h1>
           <p className="text-gray-400 text-sm sm:text-base">Create a new account</p>
-        </div>
-
+        </ when
         {/* Error Message */}
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-center gap-2">
+            <span className="font-bold">!</span> {error}
           </div>
         )}
 
@@ -180,7 +188,17 @@ export default function Register() {
             disabled={loading}
             className="w-full bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold py-3 sm:py-4 rounded-lg hover:from-brand-secondary hover:to-brand-accent transition-all duration-300 shadow-lg shadow-brand-primary/30 text-sm sm:text-base mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Registering...' : 'Register'}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Registering...
+              </span>
+            ) : (
+              'Register'
+            )}
           </button>
         </form>
 
@@ -191,7 +209,7 @@ export default function Register() {
             <button onClick={() => navigate('/login')} className="text-brand-accent hover:text-brand-secondary hover:underline font-medium transition-colors">
               Login
             </button>
-          </p>
+            </p>
         </div>
       </div>
     </div>

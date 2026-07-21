@@ -30,7 +30,7 @@ export default function Service() {
   // ၁။ စာများကို Backend မှ ဆွဲယူခြင်း
   const fetchMessages = async () => {
     try {
-      console.log('📥 Fetching messages...');
+      console.log(' Fetching messages...');
       const response = await api.get('/chat/messages');
       console.log('📥 Messages Response:', response.data);
       
@@ -51,7 +51,7 @@ export default function Service() {
 
   // ၂။ Socket.io Setup (Real-time Chat အတွက်)
   useEffect(() => {
-    console.log('🔌 Setting up socket connection...');
+    console.log(' Setting up socket connection...');
     
     // Connection status
     socket.on('connect', () => {
@@ -60,7 +60,7 @@ export default function Service() {
       
       if (user?.id) {
         socket.emit('join_user_room', user.id);
-        console.log('👤 Joined user room:', user.id);
+        console.log(' Joined user room:', user.id);
       }
     });
 
@@ -87,7 +87,7 @@ export default function Service() {
 
     socket.on('new_message', handleNewMessage);
 
-    // Component ပိတ်တဲ့အခါ Listener ကို ဖျက်ခြင်း
+    // Component ပိတ်တဲ့အခါ Listener ကို ျက်ခြင်း
     return () => {
       console.log('🧹 Cleaning up socket listeners');
       socket.off('new_message', handleNewMessage);
@@ -128,7 +128,7 @@ export default function Service() {
     setPreviewUrl('');
   };
 
-  // ၆။ Message ပို့ခြင်း (FormData ြင့် Image အပါအဝင်)
+  // ၆။ Message ပို့ခြင်း (FormData ဖြင့် Image အပါအဝင်)
   const handleSend = async (e) => {
     e.preventDefault();
     if (!message.trim() && !selectedImage) return;
@@ -162,7 +162,7 @@ export default function Service() {
         await fetchMessages(); // Refresh if data structure is different
       }
     } catch (error) {
-      console.error('❌ Error sending message:', error);
+      console.error(' Error sending message:', error);
       console.error('Error Response:', error.response?.data);
       alert('Failed to send message. Please try again.');
     }
@@ -222,16 +222,18 @@ export default function Service() {
             // ✅ FIXED: Better message data extraction
             const messageText = msg.message || msg.content || msg.text || '';
             const imageUrl = msg.image_url || msg.imageUrl || msg.image || '';
-            
-            // ✅ CRITICAL FIX: Determine if message is from current user
-            // Backend က "user" လို့ ပို့ရင် (သို့မဟုတ်) user ID ကိုက်ရင်
             const sender = msg.sender || msg.sent_by;
+            const timestamp = msg.created_at || msg.createdAt || msg.timestamp;
+            
+            // ✅ CRITICAL FIX: Determine if message is from current user or admin
+            // User messages → justify-end (RIGHT side)
+            // Admin messages → justify-start (LEFT side)
             const isFromUser = sender === 'user' || 
                               (user?.id && sender === user.id.toString()) ||
                               (user?.phone && sender === user.phone);
             
             // ✅ Debugging: Console မှာ ကြည့်ပါ
-            console.log(' Message:', {
+            console.log('📨 Message:', {
               id: msg.id,
               sender,
               isFromUser,
@@ -260,7 +262,7 @@ export default function Service() {
                   )}
                   
                   <p className={`text-[10px] ${isFromUser ? 'text-blue-200' : 'text-gray-500'}`}>
-                    {formatTime(msg.created_at || msg.createdAt || msg.timestamp)}
+                    {formatTime(timestamp)}
                   </p>
                 </div>
               </div>

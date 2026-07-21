@@ -32,7 +32,7 @@ export default function Service() {
     try {
       console.log('📥 Fetching messages...');
       const response = await api.get('/chat/messages');
-      console.log(' Messages Response:', response.data);
+      console.log('📥 Messages Response:', response.data);
       
       // ✅ FIXED: Better data handling
       const messagesData = response.data.messages || response.data.data || response.data || [];
@@ -87,7 +87,7 @@ export default function Service() {
 
     socket.on('new_message', handleNewMessage);
 
-    // Component ပိတ်တဲ့အခါ Listener ကို ျက်ခြင်း
+    // Component ပိတ်တဲ့အခါ Listener ကို ဖျက်ခြင်း
     return () => {
       console.log('🧹 Cleaning up socket listeners');
       socket.off('new_message', handleNewMessage);
@@ -128,7 +128,7 @@ export default function Service() {
     setPreviewUrl('');
   };
 
-  // ၆။ Message ပို့ခြင်း (FormData ဖြင့် Image အပါအဝင်)
+  // ၆။ Message ပို့ခြင်း (FormData ြင့် Image အပါအဝင်)
   const handleSend = async (e) => {
     e.preventDefault();
     if (!message.trim() && !selectedImage) return;
@@ -168,7 +168,7 @@ export default function Service() {
     }
   };
 
-  // ၇။ Image ကို ှိပ်လိုက်ရင် New Tab ဖြင့် ဖွင့်ခြင်း
+  // ၇။ Image ကို နှိပ်လိုက်ရင် New Tab ဖြင့် ဖွင့်ခြင်း
   const handleImageClick = (imageUrl) => {
     if (imageUrl) {
       // ✅ FIXED: Use production backend URL
@@ -222,13 +222,27 @@ export default function Service() {
             // ✅ FIXED: Better message data extraction
             const messageText = msg.message || msg.content || msg.text || '';
             const imageUrl = msg.image_url || msg.imageUrl || msg.image || '';
-            const sender = msg.sender || msg.sent_by || 'user';
-            const timestamp = msg.created_at || msg.createdAt || msg.timestamp;
+            
+            // ✅ CRITICAL FIX: Determine if message is from current user
+            // Backend က "user" လို့ ပို့ရင် (သို့မဟုတ်) user ID ကိုက်ရင်
+            const sender = msg.sender || msg.sent_by;
+            const isFromUser = sender === 'user' || 
+                              (user?.id && sender === user.id.toString()) ||
+                              (user?.phone && sender === user.phone);
+            
+            // ✅ Debugging: Console မှာ ကြည့်ပါ
+            console.log(' Message:', {
+              id: msg.id,
+              sender,
+              isFromUser,
+              userId: user?.id,
+              userPhone: user?.phone
+            });
             
             return (
-              <div key={msg.id} className={`flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`flex ${isFromUser ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                  sender === 'user' 
+                  isFromUser
                     ? 'bg-brand-primary text-white rounded-br-none' 
                     : 'bg-dark-card border border-gray-800 text-gray-200 rounded-bl-none'
                 }`}>
@@ -245,8 +259,8 @@ export default function Service() {
                     </div>
                   )}
                   
-                  <p className={`text-[10px] ${sender === 'user' ? 'text-blue-200' : 'text-gray-500'}`}>
-                    {formatTime(timestamp)}
+                  <p className={`text-[10px] ${isFromUser ? 'text-blue-200' : 'text-gray-500'}`}>
+                    {formatTime(msg.created_at || msg.createdAt || msg.timestamp)}
                   </p>
                 </div>
               </div>

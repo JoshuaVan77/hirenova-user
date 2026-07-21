@@ -52,7 +52,9 @@ export default function Register() {
       }
     } catch (err) {
       console.error('Registration error:', err);
-      setError('An unexpected error occurred. Please try again.');
+      // ✅ IMPROVED: Backend က ပြန်ပို့တဲ့ Error Message ကို တိုက်ရိုက်ပြသပေးမယ်
+      const backendMessage = err.response?.data?.message || err.message;
+      setError(backendMessage || 'An unexpected error occurred. Please check your details and try again.');
     } finally {
       setLoading(false);
     }

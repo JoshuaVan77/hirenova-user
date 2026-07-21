@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import io from 'socket.io-client';
 
-// ✅ Production URL
 const SOCKET_URL = 'https://hirenova-backend-production-32b1.up.railway.app';
 const socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
@@ -28,12 +27,30 @@ export default function Service() {
 
   const fetchMessages = async () => {
     try {
+      console.log('📥 Fetching messages...');
       const response = await api.get('/chat/messages');
+      console.log('📥 Full Response:', response.data);
+      
       const rawData = response.data.messages || response.data.data || response.data || [];
+      
+      // ✅ CRITICAL: Print each message to see the sender field
+      console.log('🔍 Messages Data Structure:');
+      rawData.forEach((msg, index) => {
+        console.log(`Message ${index + 1}:`, {
+          id: msg.id,
+          sender: msg.sender,
+          sent_by: msg.sent_by,
+          sender_id: msg.sender_id,
+          user_id: msg.user_id,
+          admin_id: msg.admin_id,
+          message: msg.message,
+          fullObject: msg
+        });
+      });
       
       const safeMessages = Array.isArray(rawData) ? rawData.map(msg => ({
         ...msg,
-        sender: msg.sender || msg.sent_by || msg.sender_id || 'user'
+        sender: msg.sender || msg.sent_by || msg.sender_id || msg.user_id || 'user'
       })) : [];
       
       setMessages(safeMessages);
@@ -63,6 +80,7 @@ export default function Service() {
     const handleNewMessage = (data) => {
       const newMessage = data.message || data;
       if (newMessage) {
+        console.log('📩 New Socket Message:', newMessage);
         setMessages(prev => {
           const exists = prev.some(msg => msg.id === newMessage.id);
           if (exists) return prev;
@@ -138,7 +156,7 @@ export default function Service() {
         await fetchMessages();
       }
     } catch (error) {
-      console.error(' Error sending message:', error);
+      console.error('❌ Error sending message:', error);
       alert('Failed to send message. Please try again.');
     }
   };
@@ -192,14 +210,19 @@ export default function Service() {
             const imageUrl = msg.image_url || msg.imageUrl || msg.image || '';
             const timestamp = msg.created_at || msg.createdAt || msg.timestamp;
             
-            // ✅ CRITICAL: Check if message is from current user
-            // User messages → RIGHT side (blue)
-            // Admin messages → LEFT side (gray)
-            const currentUserId = user?.id || user?._id || user?.phone;
-            const senderId = msg.sender || msg.sent_by || msg.sender_id;
+            // ✅ Print each message's sender for debugging
+            console.log('📨 Rendering Message:', {
+              id: msg.id,
+              sender: msg.sender,
+              user_id: user?.id
+            });
             
-            // If sender matches current user → show on RIGHT
-            // If sender is different (admin) → show on LEFT
+            // ✅ Check if sender matches current user
+            const currentUserId = user?.id || user?._id;
+            const senderId = msg.sender;
+            
+            // If sender is 'user' string OR matches current user's ID → RIGHT side
+            // Otherwise (admin) → LEFT side
             const isFromCurrentUser = senderId === 'user' || 
                                      (currentUserId && String(senderId) === String(currentUserId));
             

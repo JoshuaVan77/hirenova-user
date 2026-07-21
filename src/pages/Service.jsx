@@ -5,8 +5,16 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import io from 'socket.io-client';
 
-// Socket connection setup
-const socket = io('http://localhost:5000');
+// ✅ FIXED: Socket connection setup - Production URL
+const SOCKET_URL = 'https://hirenova-backend-production-32b1.up.railway.app';
+const socket = io(SOCKET_URL, {
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: 5
+});
+
+// ✅ FIXED: Backend URL for images
+const BACKEND_URL = 'https://hirenova-backend-production-32b1.up.railway.app';
 
 export default function Service() {
   const navigate = useNavigate();
@@ -16,15 +24,22 @@ export default function Service() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(false);
   const messagesEndRef = useRef(null);
 
   // ၁။ စာများကို Backend မှ ဆွဲယူခြင်း
   const fetchMessages = async () => {
     try {
+      console.log('📥 Fetching messages...');
       const response = await api.get('/chat/messages');
-      setMessages(response.data.messages || []);
+      console.log(' Messages Response:', response.data);
+      
+      // ✅ FIXED: Better data handling
+      const messagesData = response.data.messages || response.data.data || response.data || [];
+      setMessages(Array.isArray(messagesData) ? messagesData : []);
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      console.error('❌ Error fetching messages:', error);
+      console.error('Error Response:', error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -36,22 +51,48 @@ export default function Service() {
 
   // ၂။ Socket.io Setup (Real-time Chat အတွက်)
   useEffect(() => {
-    if (user?.id) {
-      socket.emit('join_user_room', user.id);
-    }
+    console.log('🔌 Setting up socket connection...');
+    
+    // Connection status
+    socket.on('connect', () => {
+      console.log('✅ Socket connected:', socket.id);
+      setConnected(true);
+      
+      if (user?.id) {
+        socket.emit('join_user_room', user.id);
+        console.log('👤 Joined user room:', user.id);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ Socket disconnected');
+      setConnected(false);
+    });
 
     const handleNewMessage = (data) => {
-      // Admin က ပို့လိုက်တဲ့ Message ကို Real-time ဖမ်းယူခြင်း
-      if (data.message.sender === 'admin') {
-        setMessages(prev => [...prev, data.message]);
+      console.log('📩 New message received:', data);
+      
+      // ✅ FIXED: Better data structure handling
+      const newMessage = data.message || data;
+      
+      if (newMessage) {
+        setMessages(prev => {
+          // Don't add duplicate messages
+          const exists = prev.some(msg => msg.id === newMessage.id);
+          if (exists) return prev;
+          return [...prev, newMessage];
+        });
       }
     };
 
     socket.on('new_message', handleNewMessage);
 
-    // Component ပိတ်တဲ့အခါ Listener ကို ဖျက်ခြင်း
+    // Component ပိတ်တဲ့အခါ Listener ကို ျက်ခြင်း
     return () => {
+      console.log('🧹 Cleaning up socket listeners');
       socket.off('new_message', handleNewMessage);
+      socket.off('connect');
+      socket.off('disconnect');
     };
   }, [user]);
 
@@ -92,6 +133,8 @@ export default function Service() {
     e.preventDefault();
     if (!message.trim() && !selectedImage) return;
 
+    console.log('📤 Sending message:', { message, hasImage: !!selectedImage });
+
     const formData = new FormData();
     formData.append('message', message);
     if (selectedImage) {
@@ -105,26 +148,31 @@ export default function Service() {
         }
       });
       
+      console.log('✅ Message sent:', response.data);
+      
       setMessage('');
       handleRemoveImage();
       
-      // ပို့လိုက်တဲ့ Message ကို ချက်ချင်း UI မှာ ပြသခြင်း
+      // ✅ FIXED: Add message to UI immediately
       if (response.data.data) {
         setMessages(prev => [...prev, response.data.data]);
+      } else if (response.data.message) {
+        setMessages(prev => [...prev, response.data.message]);
       } else {
-        await fetchMessages();
+        await fetchMessages(); // Refresh if data structure is different
       }
     } catch (error) {
-      console.error('Error sending message:', error);
-      alert('Failed to send message');
+      console.error('❌ Error sending message:', error);
+      console.error('Error Response:', error.response?.data);
+      alert('Failed to send message. Please try again.');
     }
   };
 
-  // ၇။ Image ကို နှိပ်လိုက်ရင် New Tab ဖြင့် ဖွင့်ခြင်း
+  // ၇။ Image ကို ှိပ်လိုက်ရင် New Tab ဖြင့် ဖွင့်ခြင်း
   const handleImageClick = (imageUrl) => {
     if (imageUrl) {
-      // Backend URL နဲ့ တွဲပေးခြင်း
-      const fullUrl = imageUrl.startsWith('http') ? imageUrl : `http://localhost:5000${imageUrl}`;
+      // ✅ FIXED: Use production backend URL
+      const fullUrl = imageUrl.startsWith('http') ? imageUrl : `${BACKEND_URL}${imageUrl}`;
       window.open(fullUrl, '_blank');
     }
   };
@@ -146,8 +194,11 @@ export default function Service() {
         </button>
         <div className="flex-1">
           <h1 className="text-lg font-bold">Customer Support</h1>
-          <p className="text-xs text-green-400 flex items-center gap-1">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online
+          <p className="text-xs flex items-center gap-1">
+            <span className={`w-2 h-2 rounded-full animate-pulse ${connected ? 'bg-green-400' : 'bg-red-400'}`}></span>
+            <span className={connected ? 'text-green-400' : 'text-red-400'}>
+              {connected ? 'Online' : 'Connecting...'}
+            </span>
           </p>
         </div>
       </div>
@@ -167,32 +218,40 @@ export default function Service() {
             </div>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                msg.sender === 'user' 
-                  ? 'bg-brand-primary text-white rounded-br-none' 
-                  : 'bg-dark-card border border-gray-800 text-gray-200 rounded-bl-none'
-              }`}>
-                {msg.message && <p className="text-sm mb-2">{msg.message}</p>}
-                
-                {msg.image_url && (
-                  <div className="mb-2">
-                    <img 
-                      src={`http://localhost:5000${msg.image_url}`} 
-                      alt="Shared" 
-                      className="max-w-full h-auto rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => handleImageClick(msg.image_url)}
-                    />
-                  </div>
-                )}
-                
-                <p className={`text-[10px] ${msg.sender === 'user' ? 'text-blue-200' : 'text-gray-500'}`}>
-                  {formatTime(msg.created_at)}
-                </p>
+          messages.map((msg) => {
+            // ✅ FIXED: Better message data extraction
+            const messageText = msg.message || msg.content || msg.text || '';
+            const imageUrl = msg.image_url || msg.imageUrl || msg.image || '';
+            const sender = msg.sender || msg.sent_by || 'user';
+            const timestamp = msg.created_at || msg.createdAt || msg.timestamp;
+            
+            return (
+              <div key={msg.id} className={`flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                  sender === 'user' 
+                    ? 'bg-brand-primary text-white rounded-br-none' 
+                    : 'bg-dark-card border border-gray-800 text-gray-200 rounded-bl-none'
+                }`}>
+                  {messageText && <p className="text-sm mb-2">{messageText}</p>}
+                  
+                  {imageUrl && (
+                    <div className="mb-2">
+                      <img 
+                        src={imageUrl.startsWith('http') ? imageUrl : `${BACKEND_URL}${imageUrl}`}
+                        alt="Shared" 
+                        className="max-w-full h-auto rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => handleImageClick(imageUrl)}
+                      />
+                    </div>
+                  )}
+                  
+                  <p className={`text-[10px] ${sender === 'user' ? 'text-blue-200' : 'text-gray-500'}`}>
+                    {formatTime(timestamp)}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>

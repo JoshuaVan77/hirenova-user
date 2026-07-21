@@ -5,14 +5,17 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import io from 'socket.io-client';
 
-const SOCKET_URL = 'https://hirenova-backend-production-32b1.up.railway.app';
-const socket = io(SOCKET_URL, {
-  transports: ['websocket', 'polling'],
-  reconnection: true,
-  reconnectionAttempts: 5
-});
-
 const BACKEND_URL = 'https://hirenova-backend-production-32b1.up.railway.app';
+
+// ✅ Socket connection speed & stability optimization
+const socket = io(BACKEND_URL, {
+  transports: ['websocket', 'polling'],
+  secure: true,
+  autoConnect: true,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 500, // ၁ စက္ကန့်အောက်အထိ လျှော့ချထားသည်
+});
 
 export default function Service() {
   const navigate = useNavigate();
@@ -22,17 +25,15 @@ export default function Service() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(socket.connected);
   const messagesEndRef = useRef(null);
 
   const fetchMessages = async () => {
     try {
-      console.log('📥 Fetching messages...');
       const response = await api.get('/chat/messages');
       const rawData = response.data.messages || response.data.data || response.data || [];
       
       const safeMessages = Array.isArray(rawData) ? rawData.map(msg => {
-        // Admin နှင့် User ခွဲခြားသည့် Logic ကို ပိုမိုတိကျအောင် ပြင်ဆင်ခြင်း
         let senderType = msg.sender || msg.sent_by || msg.sender_type;
         
         if (!senderType) {
@@ -57,17 +58,26 @@ export default function Service() {
     fetchMessages();
   }, []);
 
+  // ✅ Socket Connection & Real-time Listeners Setup
   useEffect(() => {
-    socket.on('connect', () => {
+    // လက်ရှိ socket connection status ကို ချက်ချင်း စစ်ဆေးပါ
+    if (socket.connected) {
+      setConnected(true);
+      if (user?.id) socket.emit('join_user_room', user.id);
+    } else {
+      socket.connect();
+    }
+
+    const onConnect = () => {
       setConnected(true);
       if (user?.id) {
         socket.emit('join_user_room', user.id);
       }
-    });
+    };
 
-    socket.on('disconnect', () => {
+    const onDisconnect = () => {
       setConnected(false);
-    });
+    };
 
     const handleNewMessage = (data) => {
       const newMessage = data.message || data;
@@ -90,12 +100,20 @@ export default function Service() {
       }
     };
 
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
     socket.on('new_message', handleNewMessage);
 
+    // ✅ Backup Polling: Socket နှောင့်နှေးပါက 4 စက္ကန့်တစ်ကြိမ် Message အသစ်များကို မသိမသာ ဆွဲယူမည်
+    const fallbackInterval = setInterval(() => {
+      fetchMessages();
+    }, 4000);
+
     return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
       socket.off('new_message', handleNewMessage);
-      socket.off('connect');
-      socket.off('disconnect');
+      clearInterval(fallbackInterval);
     };
   }, [user]);
 
@@ -216,7 +234,6 @@ export default function Service() {
             const sender = String(msg.sender || '').toLowerCase();
             const isAdmin = sender === 'admin' || !!msg.admin_id || msg.sent_by === 'admin';
             
-            // ✅ စာပို့သူသည် Admin ဖြစ်ပါက ဘယ်ဘက် (မီးခိုးရောင်)၊ User ဖြစ်ပါက ညာဘက် (အပြာရောင်)
             const isFromCurrentUser = !isAdmin && (sender === 'user' || msg.user_id);
 
             return (
@@ -226,8 +243,8 @@ export default function Service() {
               >
                 <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                   isFromCurrentUser 
-                    ? 'bg-[#1e40af] text-white rounded-br-none' // User (ညာဘက် - အပြာ)
-                    : 'bg-[#1f2937] text-gray-200 rounded-bl-none' // Admin (ဘယ်ဘက် - မီးခိုး)
+                    ? 'bg-[#1e40af] text-white rounded-br-none' 
+                    : 'bg-[#1f2937] text-gray-200 rounded-bl-none' 
                 }`}>
                   {messageText && <p className="text-sm leading-relaxed mb-1">{messageText}</p>}
                   

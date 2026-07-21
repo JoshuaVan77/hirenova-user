@@ -43,14 +43,11 @@ export default function Register() {
     const fullPhone = `${selectedCountry.code}${formData.phone}`;
     
     try {
-      // ✅ AuthContext ထဲက register function ကို ခေါ်သုံးပါ
       const result = await register({ ...formData, phone: fullPhone });
 
       if (result.success) {
-        // ✅ မှတ်ပုံတင်အောင်မြင်ပါက Login page သို့ ပို့ပါ
         navigate('/login', { state: { message: 'Registration successful! Please login.' } });
       } else {
-        // ✅ Backend က ပြန်ပို့တဲ့ Error Message ကို ပြသပါ
         setError(result.message || 'Registration failed. Please check your details.');
       }
     } catch (err) {
@@ -72,7 +69,8 @@ export default function Register() {
             HireNova
           </h1>
           <p className="text-gray-400 text-sm sm:text-base">Create a new account</p>
-        </ when
+        </div>
+
         {/* Error Message */}
         {error && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-center gap-2">
@@ -209,7 +207,7 @@ export default function Register() {
             <button onClick={() => navigate('/login')} className="text-brand-accent hover:text-brand-secondary hover:underline font-medium transition-colors">
               Login
             </button>
-            </p>
+          </p>
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import io from 'socket.io-client';
 
-// ✅ FIXED: Socket connection setup - Production URL
+// ✅ Production URL
 const SOCKET_URL = 'https://hirenova-backend-production-32b1.up.railway.app';
 const socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
@@ -13,7 +13,6 @@ const socket = io(SOCKET_URL, {
   reconnectionAttempts: 5
 });
 
-// ✅ FIXED: Backend URL for images
 const BACKEND_URL = 'https://hirenova-backend-production-32b1.up.railway.app';
 
 export default function Service() {
@@ -27,19 +26,20 @@ export default function Service() {
   const [connected, setConnected] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // ၁။ စာများကို Backend မှ ဆွဲယူခြင်း
   const fetchMessages = async () => {
     try {
-      console.log(' Fetching messages...');
       const response = await api.get('/chat/messages');
-      console.log('📥 Messages Response:', response.data);
+      const rawData = response.data.messages || response.data.data || response.data || [];
       
-      // ✅ FIXED: Better data handling
-      const messagesData = response.data.messages || response.data.data || response.data || [];
-      setMessages(Array.isArray(messagesData) ? messagesData : []);
+      // ✅ BULLETPROOF: Ensure every message has a sender, defaulting to 'user'
+      const safeMessages = Array.isArray(rawData) ? rawData.map(msg => ({
+        ...msg,
+        sender: msg.sender || msg.sent_by || msg.sender_id || 'user'
+      })) : [];
+      
+      setMessages(safeMessages);
     } catch (error) {
       console.error('❌ Error fetching messages:', error);
-      console.error('Error Response:', error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -49,54 +49,39 @@ export default function Service() {
     fetchMessages();
   }, []);
 
-  // ၂။ Socket.io Setup (Real-time Chat အတွက်)
   useEffect(() => {
-    console.log(' Setting up socket connection...');
-    
-    // Connection status
     socket.on('connect', () => {
-      console.log('✅ Socket connected:', socket.id);
       setConnected(true);
-      
       if (user?.id) {
         socket.emit('join_user_room', user.id);
-        console.log(' Joined user room:', user.id);
       }
     });
 
     socket.on('disconnect', () => {
-      console.log('❌ Socket disconnected');
       setConnected(false);
     });
 
     const handleNewMessage = (data) => {
-      console.log('📩 New message received:', data);
-      
-      // ✅ FIXED: Better data structure handling
       const newMessage = data.message || data;
-      
       if (newMessage) {
         setMessages(prev => {
-          // Don't add duplicate messages
           const exists = prev.some(msg => msg.id === newMessage.id);
           if (exists) return prev;
-          return [...prev, newMessage];
+          // ✅ Ensure new socket message has a sender
+          return [...prev, { ...newMessage, sender: newMessage.sender || 'user' }];
         });
       }
     };
 
     socket.on('new_message', handleNewMessage);
 
-    // Component ပိတ်တဲ့အခါ Listener ကို ျက်ခြင်း
     return () => {
-      console.log('🧹 Cleaning up socket listeners');
       socket.off('new_message', handleNewMessage);
       socket.off('connect');
       socket.off('disconnect');
     };
   }, [user]);
 
-  // ၃။ Message အသစ်တက်တိုင်း အောက်ဆုံးသို့ Scroll ချခြင်း
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -105,7 +90,6 @@ export default function Service() {
     scrollToBottom();
   }, [messages]);
 
-  // ၄။ Image ရွေးချယ်ခြင်း
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -122,18 +106,14 @@ export default function Service() {
     }
   };
 
-  // ၅။ Image ဖျက်ခြင်း
   const handleRemoveImage = () => {
     setSelectedImage(null);
     setPreviewUrl('');
   };
 
-  // ၆။ Message ပို့ခြင်း (FormData ဖြင့် Image အပါအဝင်)
   const handleSend = async (e) => {
     e.preventDefault();
     if (!message.trim() && !selectedImage) return;
-
-    console.log('📤 Sending message:', { message, hasImage: !!selectedImage });
 
     const formData = new FormData();
     formData.append('message', message);
@@ -143,41 +123,36 @@ export default function Service() {
 
     try {
       const response = await api.post('/chat/send', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
-      console.log('✅ Message sent:', response.data);
       
       setMessage('');
       handleRemoveImage();
       
-      // ✅ FIXED: Add message to UI immediately
-      if (response.data.data) {
-        setMessages(prev => [...prev, response.data.data]);
-      } else if (response.data.message) {
-        setMessages(prev => [...prev, response.data.message]);
+      const responseData = response.data.data || response.data.message;
+      if (responseData) {
+        // ✅ CRITICAL FIX: Force sender to 'user' for optimistic update
+        const sentMessage = { 
+          ...responseData, 
+          sender: responseData.sender || 'user' 
+        };
+        setMessages(prev => [...prev, sentMessage]);
       } else {
-        await fetchMessages(); // Refresh if data structure is different
+        await fetchMessages();
       }
     } catch (error) {
-      console.error(' Error sending message:', error);
-      console.error('Error Response:', error.response?.data);
+      console.error('❌ Error sending message:', error);
       alert('Failed to send message. Please try again.');
     }
   };
 
-  // ၇။ Image ကို နှိပ်လိုက်ရင် New Tab ဖြင့် ဖွင့်ခြင်း
   const handleImageClick = (imageUrl) => {
     if (imageUrl) {
-      // ✅ FIXED: Use production backend URL
       const fullUrl = imageUrl.startsWith('http') ? imageUrl : `${BACKEND_URL}${imageUrl}`;
       window.open(fullUrl, '_blank');
     }
   };
 
-  // ၈။ Time Format ပြောင်းခြင်း
   const formatTime = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -187,7 +162,6 @@ export default function Service() {
 
   return (
     <div className="flex flex-col h-screen bg-dark-bg text-white">
-      {/* Header */}
       <div className="bg-dark-card border-b border-gray-800 p-4 flex items-center gap-4 sticky top-0 z-10">
         <button onClick={() => navigate('/home')} className="text-gray-400 hover:text-white">
           <ArrowLeft className="h-6 w-6" />
@@ -203,12 +177,10 @@ export default function Service() {
         </div>
       </div>
 
-      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading ? (
           <div className="flex items-center justify-center h-full text-gray-400">
-            <MessageCircle className="h-6 w-6 animate-pulse mr-2" /> 
-            Loading messages...
+            <MessageCircle className="h-6 w-6 animate-pulse mr-2" /> Loading messages...
           </div>
         ) : messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500">
@@ -219,32 +191,20 @@ export default function Service() {
           </div>
         ) : (
           messages.map((msg) => {
-            // ✅ FIXED: Better message data extraction
             const messageText = msg.message || msg.content || msg.text || '';
             const imageUrl = msg.image_url || msg.imageUrl || msg.image || '';
-            const sender = msg.sender || msg.sent_by;
             const timestamp = msg.created_at || msg.createdAt || msg.timestamp;
             
-            // ✅ CRITICAL FIX: Determine if message is from current user or admin
-            // User messages → justify-end (RIGHT side)
-            // Admin messages → justify-start (LEFT side)
-            const isFromUser = sender === 'user' || 
-                              (user?.id && sender === user.id.toString()) ||
-                              (user?.phone && sender === user.phone);
-            
-            // ✅ Debugging: Console မှာ ကြည့်ပါ
-            console.log('📨 Message:', {
-              id: msg.id,
-              sender,
-              isFromUser,
-              userId: user?.id,
-              userPhone: user?.phone
-            });
+            // ✅ BULLETPROOF CHECK: 
+            // 1. Explicitly 'user'
+            // 2. Matches logged-in user's ID (using String() to prevent number/string mismatch)
+            const currentUserId = user?.id || user?._id;
+            const isFromUser = msg.sender === 'user' || String(msg.sender) === String(currentUserId);
             
             return (
               <div key={msg.id} className={`flex ${isFromUser ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                  isFromUser
+                  isFromUser 
                     ? 'bg-brand-primary text-white rounded-br-none' 
                     : 'bg-dark-card border border-gray-800 text-gray-200 rounded-bl-none'
                 }`}>
@@ -272,7 +232,6 @@ export default function Service() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Image Preview */}
       {previewUrl && (
         <div className="bg-dark-card border-t border-gray-800 p-3">
           <div className="relative inline-block">
@@ -284,25 +243,12 @@ export default function Service() {
         </div>
       )}
 
-      {/* Input Area */}
       <div className="bg-dark-card border-t border-gray-800 p-4 sticky bottom-0">
-        <input 
-          type="file" 
-          accept="image/*" 
-          onChange={handleImageSelect} 
-          className="hidden" 
-          id="image-upload" 
-        />
+        <input type="file" accept="image/*" onChange={handleImageSelect} className="hidden" id="image-upload" />
         <form onSubmit={handleSend} className="flex items-center gap-2">
-          <button 
-            type="button" 
-            onClick={() => document.getElementById('image-upload').click()}
-            className="text-gray-400 hover:text-brand-secondary p-2 transition-colors"
-            title="Send image"
-          >
+          <button type="button" onClick={() => document.getElementById('image-upload').click()} className="text-gray-400 hover:text-brand-secondary p-2 transition-colors">
             <Image className="h-5 w-5" />
           </button>
-          
           <input
             type="text"
             value={message}
@@ -310,12 +256,7 @@ export default function Service() {
             placeholder="Type your message..."
             className="flex-1 bg-dark-input border border-gray-700 rounded-full py-2 px-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-secondary"
           />
-          
-          <button 
-            type="submit"
-            disabled={!message.trim() && !selectedImage}
-            className="bg-brand-secondary hover:bg-brand-primary text-white p-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <button type="submit" disabled={!message.trim() && !selectedImage} className="bg-brand-secondary hover:bg-brand-primary text-white p-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <Send className="h-5 w-5" />
           </button>
         </form>

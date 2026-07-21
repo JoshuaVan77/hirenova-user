@@ -29,29 +29,18 @@ export default function Service() {
     try {
       console.log('📥 Fetching messages...');
       const response = await api.get('/chat/messages');
-      console.log('📥 Full Response:', response.data);
-      
       const rawData = response.data.messages || response.data.data || response.data || [];
       
-      // ✅ CRITICAL: Print each message to see the sender field
-      console.log('🔍 Messages Data Structure:');
-      rawData.forEach((msg, index) => {
-        console.log(`Message ${index + 1}:`, {
-          id: msg.id,
-          sender: msg.sender,
-          sent_by: msg.sent_by,
-          sender_id: msg.sender_id,
-          user_id: msg.user_id,
-          admin_id: msg.admin_id,
-          message: msg.message,
-          fullObject: msg
-        });
-      });
-      
-      const safeMessages = Array.isArray(rawData) ? rawData.map(msg => ({
-        ...msg,
-        sender: msg.sender || msg.sent_by || msg.sender_id || msg.user_id || 'user'
-      })) : [];
+      const safeMessages = Array.isArray(rawData) ? rawData.map(msg => {
+        // Admin သို့မဟုတ် User ဘာလဲဆိုတာ စစ်ဆေးခြင်း
+        let sender = msg.sender || msg.sent_by || msg.sender_id;
+        if (!sender) {
+          if (msg.admin_id) sender = 'admin';
+          else if (msg.user_id) sender = 'user';
+          else sender = 'user';
+        }
+        return { ...msg, sender };
+      }) : [];
       
       setMessages(safeMessages);
     } catch (error) {
@@ -80,11 +69,10 @@ export default function Service() {
     const handleNewMessage = (data) => {
       const newMessage = data.message || data;
       if (newMessage) {
-        console.log('📩 New Socket Message:', newMessage);
         setMessages(prev => {
           const exists = prev.some(msg => msg.id === newMessage.id);
           if (exists) return prev;
-          return [...prev, { ...newMessage, sender: newMessage.sender || 'user' }];
+          return [...prev, { ...newMessage, sender: newMessage.sender || 'admin' }];
         });
       }
     };
@@ -176,8 +164,9 @@ export default function Service() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-dark-bg text-white">
-      <div className="bg-dark-card border-b border-gray-800 p-4 flex items-center gap-4 sticky top-0 z-10">
+    <div className="flex flex-col h-screen bg-[#0b0e14] text-white">
+      {/* Header Section */}
+      <div className="bg-[#121824] border-b border-gray-800 p-4 flex items-center gap-4 sticky top-0 z-10">
         <button onClick={() => navigate('/home')} className="text-gray-400 hover:text-white">
           <ArrowLeft className="h-6 w-6" />
         </button>
@@ -192,6 +181,7 @@ export default function Service() {
         </div>
       </div>
 
+      {/* Messages Section */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading ? (
           <div className="flex items-center justify-center h-full text-gray-400">
@@ -210,30 +200,24 @@ export default function Service() {
             const imageUrl = msg.image_url || msg.imageUrl || msg.image || '';
             const timestamp = msg.created_at || msg.createdAt || msg.timestamp;
             
-            // ✅ Print each message's sender for debugging
-            console.log('📨 Rendering Message:', {
-              id: msg.id,
-              sender: msg.sender,
-              user_id: user?.id
-            });
-            
-            // ✅ Check if sender matches current user
             const currentUserId = user?.id || user?._id;
             const senderId = msg.sender;
             
-            // If sender is 'user' string OR matches current user's ID → RIGHT side
-            // Otherwise (admin) → LEFT side
+            // စာပို့သူသည် လက်ရှိ User ဖြစ်ပါက ညာဘက်၊ Admin/Receiver ဖြစ်ပါက ဘယ်ဘက်
             const isFromCurrentUser = senderId === 'user' || 
                                      (currentUserId && String(senderId) === String(currentUserId));
-            
+
             return (
-              <div key={msg.id} className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+              <div 
+                key={msg.id || Math.random()} 
+                className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                   isFromCurrentUser 
-                    ? 'bg-brand-primary text-white rounded-br-none' 
-                    : 'bg-dark-card border border-gray-800 text-gray-200 rounded-bl-none'
+                    ? 'bg-[#1e40af] text-white rounded-br-none' // Sender (ညာဘက် - အပြာရောင်)
+                    : 'bg-[#1f2937] text-gray-200 rounded-bl-none' // Receiver (ဘယ်ဘက် - မီးခိုးရောင်)
                 }`}>
-                  {messageText && <p className="text-sm mb-2">{messageText}</p>}
+                  {messageText && <p className="text-sm leading-relaxed mb-1">{messageText}</p>}
                   
                   {imageUrl && (
                     <div className="mb-2">
@@ -246,7 +230,7 @@ export default function Service() {
                     </div>
                   )}
                   
-                  <p className={`text-[10px] ${isFromCurrentUser ? 'text-blue-200' : 'text-gray-500'}`}>
+                  <p className={`text-[10px] text-right ${isFromCurrentUser ? 'text-blue-200' : 'text-gray-400'}`}>
                     {formatTime(timestamp)}
                   </p>
                 </div>
@@ -257,8 +241,9 @@ export default function Service() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Image Preview */}
       {previewUrl && (
-        <div className="bg-dark-card border-t border-gray-800 p-3">
+        <div className="bg-[#121824] border-t border-gray-800 p-3">
           <div className="relative inline-block">
             <img src={previewUrl} alt="Preview" className="max-h-32 rounded-lg border border-gray-700" />
             <button onClick={handleRemoveImage} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors">
@@ -268,10 +253,11 @@ export default function Service() {
         </div>
       )}
 
-      <div className="bg-dark-card border-t border-gray-800 p-4 sticky bottom-0">
+      {/* Input Section */}
+      <div className="bg-[#121824] border-t border-gray-800 p-4 sticky bottom-0">
         <input type="file" accept="image/*" onChange={handleImageSelect} className="hidden" id="image-upload" />
         <form onSubmit={handleSend} className="flex items-center gap-2">
-          <button type="button" onClick={() => document.getElementById('image-upload').click()} className="text-gray-400 hover:text-brand-secondary p-2 transition-colors">
+          <button type="button" onClick={() => document.getElementById('image-upload').click()} className="text-gray-400 hover:text-blue-400 p-2 transition-colors">
             <Image className="h-5 w-5" />
           </button>
           <input
@@ -279,10 +265,10 @@ export default function Service() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 bg-dark-input border border-gray-700 rounded-full py-2 px-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-secondary"
+            className="flex-1 bg-[#1f2937] border border-gray-700 rounded-full py-2 px-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button type="submit" disabled={!message.trim() && !selectedImage} className="bg-brand-secondary hover:bg-brand-primary text-white p-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            <Send className="h-5 w-5" />
+          <button type="submit" disabled={!message.trim() && !selectedImage} className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <Send className="h-4 w-4" />
           </button>
         </form>
       </div>

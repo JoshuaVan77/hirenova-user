@@ -31,7 +31,6 @@ export default function Service() {
       const response = await api.get('/chat/messages');
       const rawData = response.data.messages || response.data.data || response.data || [];
       
-      // ✅ BULLETPROOF: Ensure every message has a sender, defaulting to 'user'
       const safeMessages = Array.isArray(rawData) ? rawData.map(msg => ({
         ...msg,
         sender: msg.sender || msg.sent_by || msg.sender_id || 'user'
@@ -67,7 +66,6 @@ export default function Service() {
         setMessages(prev => {
           const exists = prev.some(msg => msg.id === newMessage.id);
           if (exists) return prev;
-          // ✅ Ensure new socket message has a sender
           return [...prev, { ...newMessage, sender: newMessage.sender || 'user' }];
         });
       }
@@ -131,7 +129,6 @@ export default function Service() {
       
       const responseData = response.data.data || response.data.message;
       if (responseData) {
-        // ✅ CRITICAL FIX: Force sender to 'user' for optimistic update
         const sentMessage = { 
           ...responseData, 
           sender: responseData.sender || 'user' 
@@ -141,7 +138,7 @@ export default function Service() {
         await fetchMessages();
       }
     } catch (error) {
-      console.error('❌ Error sending message:', error);
+      console.error(' Error sending message:', error);
       alert('Failed to send message. Please try again.');
     }
   };
@@ -195,16 +192,21 @@ export default function Service() {
             const imageUrl = msg.image_url || msg.imageUrl || msg.image || '';
             const timestamp = msg.created_at || msg.createdAt || msg.timestamp;
             
-            // ✅ BULLETPROOF CHECK: 
-            // 1. Explicitly 'user'
-            // 2. Matches logged-in user's ID (using String() to prevent number/string mismatch)
-            const currentUserId = user?.id || user?._id;
-            const isFromUser = msg.sender === 'user' || String(msg.sender) === String(currentUserId);
+            // ✅ CRITICAL: Check if message is from current user
+            // User messages → RIGHT side (blue)
+            // Admin messages → LEFT side (gray)
+            const currentUserId = user?.id || user?._id || user?.phone;
+            const senderId = msg.sender || msg.sent_by || msg.sender_id;
+            
+            // If sender matches current user → show on RIGHT
+            // If sender is different (admin) → show on LEFT
+            const isFromCurrentUser = senderId === 'user' || 
+                                     (currentUserId && String(senderId) === String(currentUserId));
             
             return (
-              <div key={msg.id} className={`flex ${isFromUser ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                  isFromUser 
+                  isFromCurrentUser 
                     ? 'bg-brand-primary text-white rounded-br-none' 
                     : 'bg-dark-card border border-gray-800 text-gray-200 rounded-bl-none'
                 }`}>
@@ -221,7 +223,7 @@ export default function Service() {
                     </div>
                   )}
                   
-                  <p className={`text-[10px] ${isFromUser ? 'text-blue-200' : 'text-gray-500'}`}>
+                  <p className={`text-[10px] ${isFromCurrentUser ? 'text-blue-200' : 'text-gray-500'}`}>
                     {formatTime(timestamp)}
                   </p>
                 </div>

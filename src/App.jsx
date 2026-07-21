@@ -18,14 +18,14 @@ import WithdrawRecords from './pages/WithdrawRecords';
 import Language from './pages/Language';
 import Withdraw from './pages/Withdraw';
 import TopUp from './pages/TopUp';
-import Help from './pages/Help';       // အသစ်ထည့် (Newly Added)
-import About from './pages/About';     // အသစ်ထည့် (Newly Added)
-import Service from './pages/Service'; // အသစ်ထည့် (Newly Added)
+import Help from './pages/Help';
+import About from './pages/About';
+import Service from './pages/Service'; 
 
 // Layout Component
-// Note: 'pb-20' is added to prevent content from being hidden behind the fixed BottomNav
+// ✅ FIXED: Changed bg-gray-50 to bg-dark-bg to match the dark theme of the app
 const UserLayout = ({ children }) => (
-  <div className="relative min-h-screen pb-20 bg-gray-50">
+  <div className="relative min-h-screen pb-20 bg-dark-bg text-white">
     {children}
     <BottomNav />
   </div>
@@ -65,7 +65,7 @@ function App() {
           <Route path="/topup-form" element={<TopUp />} />
           <Route path="/withdraw-form" element={<Withdraw />} />
           
-          {/* Catch-all Route for 404 (Redirects to login or home) */}
+          {/* Catch-all Route for 404 (Redirects to login) */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>

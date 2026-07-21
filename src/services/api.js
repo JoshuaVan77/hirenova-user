@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-// Backend API Base URL
-const API_BASE_URL = 'http://localhost:5000/api';
+// ✅ 1. Dynamic API Base URL (Production Ready)
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://hirenova-backend-production-32b1.up.railway.app';
+const API_BASE_URL = `${BASE_URL}/api`; // ✅ /api prefix ထည့်ထားသည်
 
-// Axios Instance ဖန်တီးခြင်း
+// ✅ 2. Axios Instance န်တီးခြင်း
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -11,7 +12,7 @@ const api = axios.create({
   },
 });
 
-// Request Interceptor (Token ထည့်သွင်းရန်)
+// ✅ 3. Request Interceptor (Token ထည့်သွင်းရန်)
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -25,7 +26,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response Interceptor (Error Handle လုပ်ရန်)
+// ✅ 4. Response Interceptor (Error Handle လုပ်ရန်)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -39,10 +40,11 @@ api.interceptors.response.use(
   }
 );
 
-// Auth API Functions
+// ✅ 5. Auth API Functions
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
 };
 
+// ✅ 6. Export default api instance
 export default api;

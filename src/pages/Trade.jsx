@@ -168,7 +168,9 @@ export default function Trade() {
       return;
     }
     
-    if (!task.id) {
+    // ✅ CRITICAL FIX: Check for BOTH 'id' and 'task_id' since backend sends 'task_id'
+    const taskId = task.id || task.task_id;
+    if (!taskId) {
       console.error('❌ Task is missing ID:', task);
       alert('Invalid task data. Please contact support.');
       return;
@@ -194,7 +196,8 @@ export default function Trade() {
           commission: parseFloat(luckyCheck.data.commission || 0),
           hotel_name: luckyCheck.data.hotel_name || task?.hotel_name || 'Lucky Hotel',
           hotel_image: luckyCheck.data.hotel_image || task?.hotel_image || '',
-          task_id: luckyCheck.data.task_id || task?.id,
+          // ✅ CRITICAL FIX: Fallback to task.task_id if task.id is missing
+          task_id: luckyCheck.data.task_id || task?.id || task?.task_id,
           topUpCompleted: luckyCheck.data.topUpCompleted || false 
         };
         
@@ -274,8 +277,11 @@ export default function Trade() {
 
   const submitTaskToBackend = async (task, isLucky, luckyAmount) => {
     try {
+      // ✅ CRITICAL FIX: Use task.id OR task.task_id for submission
+      const taskIdToSubmit = task.id || task.task_id;
+
       const response = await api.post('/user/tasks/submit', {
-        task_id: task.id,
+        task_id: taskIdToSubmit,
         task_number: completedCount + 1,
         order_amount: isLucky ? luckyAmount : parseFloat(task.order_amount || 0),
         commission: isLucky ? (luckyData?.commission || 0) : parseFloat(task.commission || 0),

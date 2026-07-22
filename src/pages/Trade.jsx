@@ -26,16 +26,14 @@ export default function Trade() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [currentTask, setCurrentTask] = useState(null);
 
-  // Rating Modal State (Second Modal)
+  // Rating Modal State (Cleanliness & Service Quality သာ ထားရှိသည်)
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [ratings, setRatings] = useState({
-    description: 3,
-    match: 3,
-    cleanliness: 3,
-    serviceQuality: 3
+    cleanliness: 5,
+    serviceQuality: 5
   });
 
-  // ✅ Custom Insufficient Balance Modal State
+  // Custom Insufficient Balance Modal State
   const [showBalanceAlert, setShowBalanceAlert] = useState(false);
   const [balanceAlertAmount, setBalanceAlertAmount] = useState(0);
 
@@ -50,21 +48,13 @@ export default function Trade() {
   const fetchTodayTasks = async () => {
     setLoading(true);
     try {
-      console.log('🔄 Fetching today tasks...');
-      
       const [tasksRes, settingsRes] = await Promise.all([
         api.get('/user/tasks/today'),
         api.get('/settings')
       ]);
       
-      console.log('📥 Tasks Response:', tasksRes.data);
-      
-      // ✅ FIXED: Better handling of tasks array
       const fetchedTasks = tasksRes.data?.tasks || tasksRes.data || [];
       const tasksArray = Array.isArray(fetchedTasks) ? fetchedTasks : [];
-      
-      console.log('✅ Tasks Array:', tasksArray);
-      console.log('📊 Total Tasks:', tasksArray.length);
       
       setTasks(tasksArray);
       setCompletedCount(tasksRes.data?.completedCount || 0);
@@ -73,22 +63,12 @@ export default function Trade() {
         setMinTaskBalance(parseFloat(settingsRes.data.settings.min_task_balance));
       }
       
-      // ✅ FIXED: Show error if no tasks available
-      if (tasksArray.length === 0) {
-        console.warn('⚠️ No tasks available for today');
-      }
-      
       await fetchTodayEarnings();
     } catch (error) {
       console.error('❌ Error fetching data:', error);
-      console.error('Error Response:', error.response?.data);
-      
-      // ✅ FIXED: Better error message
       const errorMessage = error.response?.data?.message || 
                           'Failed to load tasks. Please check your connection and try again.';
       alert(errorMessage);
-      
-      // Set empty array to prevent undefined errors
       setTasks([]);
     } finally {
       setLoading(false);
@@ -134,21 +114,16 @@ export default function Trade() {
       return;
     }
 
-    // ✅ FIXED: Check if tasks array is empty BEFORE proceeding
     if (!tasks || tasks.length === 0) {
-      console.error('❌ Tasks array is empty!');
       alert('No tasks available. Please contact support or try again later.');
       return;
     }
 
-    // ✅ FIXED: Check if completedCount is within tasks array bounds
     if (completedCount >= tasks.length) {
-      console.error('❌ Completed count exceeds available tasks');
       alert('No more tasks available for today.');
       return;
     }
 
-    // 🧹 CRITICAL FIX: Reset ALL states before checking for a new task
     setIsLuckyOrderActive(false);
     setLuckyData(null);
     setCurrentTask(null);
@@ -161,60 +136,42 @@ export default function Trade() {
     const currentTaskIndex = completedCount;
     const task = tasks[currentTaskIndex];
     
-    // ✅ FIXED: Better validation
     if (!task) {
-      console.error('❌ Task is undefined at index:', currentTaskIndex);
       alert('Task data is not available. Please refresh the page.');
       return;
     }
     
-    // ✅ CRITICAL FIX: Check for BOTH 'id' and 'task_id' since backend sends 'task_id'
     const taskId = task.id || task.task_id;
     if (!taskId) {
-      console.error('❌ Task is missing ID:', task);
       alert('Invalid task data. Please contact support.');
       return;
     }
 
-    console.log('📋 Processing Task:', task);
-
     try {
-      console.log(`🔍 Checking Lucky Order for Task #${completedCount + 1}...`);
-      
       const luckyCheck = await api.post('/user/tasks/check-lucky', {
         task_number: completedCount + 1
       });
 
-      console.log('📡 Lucky Check Response:', luckyCheck.data);
-
       if (luckyCheck.data.isLuckyOrder) {
-        console.log('🎰 LUCKY ORDER DETECTED!');
-        
         const newLuckyData = {
           taskNumber: completedCount + 1,
           requiredAmount: parseFloat(luckyCheck.data.requiredAmount || luckyCheck.data.amount || 0),
           commission: parseFloat(luckyCheck.data.commission || 0),
           hotel_name: luckyCheck.data.hotel_name || task?.hotel_name || 'Lucky Hotel',
           hotel_image: luckyCheck.data.hotel_image || task?.hotel_image || '',
-          // ✅ CRITICAL FIX: Fallback to task.task_id if task.id is missing
           task_id: luckyCheck.data.task_id || task?.id || task?.task_id,
           topUpCompleted: luckyCheck.data.topUpCompleted || false 
         };
-        
-        console.log('💾 Saving Lucky Data:', newLuckyData);
         
         setLuckyData(newLuckyData);
         setIsLuckyOrderActive(true);
         setShowLuckyModal(true);
         return; 
-      } else {
-        console.log('✅ Regular Task (No Lucky Order)');
       }
     } catch (error) {
       console.error('Lucky check failed, proceeding with regular task', error);
     }
 
-    // Regular Task Flow
     setCurrentTask(task);
     setIsLuckyOrderActive(false);
     setShowOrderModal(true);
@@ -222,36 +179,22 @@ export default function Trade() {
 
   const handleOrderSubmit = async () => {
     setShowOrderModal(false);
-    setRatings({ description: 3, match: 3, cleanliness: 3, serviceQuality: 3 });
+    setRatings({ cleanliness: 5, serviceQuality: 5 });
     setShowRatingModal(true);
   };
 
-  // ✅ STRICT LUCKY ORDER ENFORCEMENT
   const handleRatingSubmit = async () => {
-    const currentBalance = parseFloat(user?.balance || 0);
     const requiredAmount = isLuckyOrderActive 
       ? parseFloat(luckyData?.requiredAmount || 0) 
       : parseFloat(currentTask?.order_amount || 0);
-    
-    console.log('🔍 STRICT SUBMISSION CHECK:', {
-      isLuckyOrderActive,
-      currentBalance,
-      requiredAmount,
-      topUpCompleted: luckyData?.topUpCompleted,
-      willBlock: isLuckyOrderActive && requiredAmount > 0 && !luckyData?.topUpCompleted
-    });
 
-    // ✅ RULE: If it's a Lucky Order AND the required top-up hasn't been completed, BLOCK it.
     if (isLuckyOrderActive && requiredAmount > 0 && !luckyData?.topUpCompleted) {
-      console.log('🚫 BLOCKING: Lucky Order requires Top-up. Showing alert.');
       setShowRatingModal(false);
       setBalanceAlertAmount(requiredAmount);
       setShowBalanceAlert(true);
       return;
     }
     
-    // ✅ Balance လုံလောက်ရင် (သို့မဟုတ်) Regular Task ဆိုရင် Submit လုပ်မယ်
-    console.log('✅ Proceeding with submission');
     setSubmitting(true);
     try {
       await submitTaskToBackend(
@@ -260,12 +203,11 @@ export default function Trade() {
         isLuckyOrderActive ? requiredAmount : 0
       );
       
-      // ✅ Reset states after successful submission
       setShowRatingModal(false);
       setCurrentTask(null);
       setIsLuckyOrderActive(false);
       setLuckyData(null);
-      setRatings({ description: 3, match: 3, cleanliness: 3, serviceQuality: 3 });
+      setRatings({ cleanliness: 5, serviceQuality: 5 });
       
     } catch (error) {
       console.error('❌ Submit Error:', error);
@@ -277,7 +219,6 @@ export default function Trade() {
 
   const submitTaskToBackend = async (task, isLucky, luckyAmount) => {
     try {
-      // ✅ CRITICAL FIX: Use task.id OR task.task_id for submission
       const taskIdToSubmit = task.id || task.task_id;
 
       const response = await api.post('/user/tasks/submit', {
@@ -319,9 +260,8 @@ export default function Trade() {
     });
     
     setIsLuckyOrderActive(true);
-
     setShowLuckyModal(false);
-    setRatings({ description: 3, match: 3, cleanliness: 3, serviceQuality: 3 });
+    setRatings({ cleanliness: 5, serviceQuality: 5 });
     setShowRatingModal(true);
   };
 
@@ -436,7 +376,7 @@ export default function Trade() {
 
       </div>
 
-      {/* ✅ Lucky Order Modal */}
+      {/* Lucky Order Modal */}
       {showLuckyModal && luckyData && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-dark-card rounded-2xl p-6 max-w-md w-full border border-yellow-500/30 shadow-2xl">
@@ -545,12 +485,12 @@ export default function Trade() {
         </div>
       )}
 
-      {/* Rating Modal */}
+      {/* Cleaned Rating Modal (Cleanliness & Service Quality Only) */}
       {showRatingModal && currentTask && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-dark-card rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-white">Hotel Rating</h3>
+          <div className="bg-dark-card rounded-2xl p-5 max-w-sm w-full border border-gray-700 shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">Hotel Rating</h3>
               <button onClick={() => setShowRatingModal(false)} className="text-gray-400 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
@@ -560,18 +500,21 @@ export default function Trade() {
               <img 
                 src={currentTask.hotel_image} 
                 alt={currentTask.hotel_name}
-                className="w-full h-32 object-cover rounded-lg mb-4"
+                className="w-full h-32 object-cover rounded-lg mb-3"
               />
             )}
-            <p className="text-white font-semibold text-center mb-6">{currentTask.hotel_name}</p>
+            <p className="text-white font-semibold text-center mb-4">{currentTask.hotel_name}</p>
 
+            {/* Rating Stars (Description & Match ထုတ်လိုက်ပါပြီ) */}
             <div className="space-y-4 mb-6">
-              {['description', 'match', 'cleanliness', 'serviceQuality'].map((category) => (
-                <div key={category}>
-                  <p className="text-gray-400 text-sm mb-2 capitalize">{category.replace(/([A-Z])/g, ' $1').trim()}</p>
-                  <div className="flex gap-1">
+              {['cleanliness', 'serviceQuality'].map((category) => (
+                <div key={category} className="flex flex-col items-center sm:items-start">
+                  <p className="text-gray-400 text-xs mb-1.5 capitalize">
+                    {category.replace(/([A-Z])/g, ' $1').trim()}
+                  </p>
+                  <div className="flex gap-2">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <button key={star} onClick={() => handleStarClick(category, star)} className="p-1">
+                      <button key={star} onClick={() => handleStarClick(category, star)} className="p-0.5">
                         <Star className={`h-6 w-6 ${star <= ratings[category] ? 'text-yellow-400 fill-yellow-400' : 'text-gray-600'}`} />
                       </button>
                     ))}
@@ -583,14 +526,14 @@ export default function Trade() {
             <div className="flex gap-3">
               <button 
                 onClick={() => setShowRatingModal(false)} 
-                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition-colors"
+                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors"
               >
                 CANCEL
               </button>
               <button 
                 onClick={handleRatingSubmit}
                 disabled={submitting}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-bold py-3 rounded-lg transition-all disabled:opacity-50"
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-bold py-2.5 rounded-lg text-sm transition-all disabled:opacity-50"
               >
                 {submitting ? 'Submitting...' : 'SUBMIT ORDER'}
               </button>
@@ -599,7 +542,7 @@ export default function Trade() {
         </div>
       )}
 
-      {/* ✅ Custom Insufficient Balance Modal (Middle of Screen) */}
+      {/* Custom Insufficient Balance Modal */}
       {showBalanceAlert && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-dark-card rounded-2xl p-6 max-w-sm w-full border border-red-500/30 shadow-2xl">

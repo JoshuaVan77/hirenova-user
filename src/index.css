@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 📱 Mobile Overflow Fix */
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
+}
+
 * {
   margin: 0;
   padding: 0;

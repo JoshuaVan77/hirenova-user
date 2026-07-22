@@ -4,9 +4,9 @@ import { User, Phone, Mail, Lock, Key, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const countries = [
-  { code: '+95', flag: '🇲🇲', name: 'Myanmar' },
-  { code: '+91', flag: '🇮🇳', name: 'India' },
   { code: '+1', flag: '🇺🇸', name: 'USA' },
+  { code: '+91', flag: '🇮🇳', name: 'India' },
+  { code: '+95', flag: '🇲🇲', name: 'Myanmar' },
   { code: '+44', flag: '🇬🇧', name: 'UK' },
   { code: '+86', flag: '🇨🇳', name: 'China' },
   { code: '+66', flag: '🇹🇭', name: 'Thailand' },
@@ -88,7 +88,7 @@ export default function Register() {
             <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-1">Full Name</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
-              <input name="full_name" onChange={handleChange} className="w-full bg-dark-input border border-gray-700 rounded-lg py-2.5 sm:py-3 pl-9 sm:pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:border-transparent transition-all text-sm sm:text-base" placeholder="Ko Ko" required />
+              <input name="full_name" onChange={handleChange} className="w-full bg-dark-input border border-gray-700 rounded-lg py-2.5 sm:py-3 pl-9 sm:pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:border-transparent transition-all text-sm sm:text-base" placeholder="Full Name" required />
             </div>
           </div>
 

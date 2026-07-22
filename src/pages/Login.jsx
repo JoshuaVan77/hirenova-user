@@ -4,9 +4,9 @@ import { Lock, Phone, ChevronDown, Smartphone, Tablet, Monitor } from 'lucide-re
 import { useAuth } from '../context/AuthContext';
 
 const countries = [
+  { code: '+1', flag: '🇺🇸', name: 'USA' },
   { code: '+95', flag: '🇲🇲', name: 'Myanmar' },
   { code: '+91', flag: '🇮🇳', name: 'India' },
-  { code: '+1', flag: '🇺🇸', name: 'USA' },
   { code: '+44', flag: '🇬🇧', name: 'UK' },
   { code: '+86', flag: '🇨🇳', name: 'China' },
   { code: '+66', flag: '🇹🇭', name: 'Thailand' },
